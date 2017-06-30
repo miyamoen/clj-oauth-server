@@ -10,7 +10,7 @@
    (GET  "/authorize" [] (authorization/login-page auth nil))
    (POST "/authorize" [] (authorization/authorize-resource auth))
    (POST "/token" [] (authorization/access-token-resource auth))
-   (GET  "/introspect" [] (authorization/introspect-resource auth))
+   (POST  "/introspect" [] (authorization/introspect-resource auth))
 
    ;; Protected resource
    (GET "/api/accounts" [] (account/list-resource account))))

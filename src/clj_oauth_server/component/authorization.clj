@@ -15,7 +15,7 @@
   {:client [{:client_id        "6P1kUE5eEY"
              :client_secret    "lxcK6KWOTN"
              :client_type      "PUBLIC"
-             :redirect_uris    "http://localhost:3001/cb"
+             :redirect_uris    "http://localhost:45102/oauth/cb"
              :application_name "Sample Application"
              :application_type "WEB"}
             {:client_id        "bRM1wEFMOnY"
@@ -67,6 +67,10 @@
     (include-js "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js")]))
 
 (defn find-client-by-id [datomic client-id]
+  (println "findするｙｐ" (->> db
+       :client
+       (filter #(= (:client_id %) client-id))
+       first))
   (->> db
        :client
        (filter #(= (:client_id %) client-id))
@@ -213,6 +217,7 @@
   ;; TODO: Check client type.
   (fn [request]
     (let [{:keys [grant_type code redirect_uri client_id refresh_token]} (:params request)]
+      (println "grant_type :" grant_type ": dda")
       (case grant_type
         "authorization_code"
         (if-let [access-token (and (find-client-by-id datomic client_id)
@@ -261,17 +266,16 @@
 
 (defn introspect-resource
   [{:keys [datomic] :as auth}]
-  (liberator/resource
-   :available-media-types ["application/x-www-form-urlencoded" "application/json"]
-   :allowed-methods [:get]
-   :handle-ok (fn [{:keys [request]}]
-                (let [{:keys [token token_type_hint]} (:params request)
-                      {:keys [client] :as token-info} (get-auth auth token)]
-                  (json/write-str {:active     (some? token-info)
-                                   :scope      (:scope client)
-                                   :client_id  (:client_id client)
-                                   :token_type "bearer"
-                                   :username   (:username client)})))))
+  (fn [request]
+    (let [{:keys [token token_type_hint]} (:params request)
+          {:keys [client] :as token-info} (get-auth auth token)]
+      {:status 200
+       :headers {"Content-Type" "application/json;charset=UTF-8" "Cache-Control" "no-store" "Pragma" "no-cache"}
+       :body (json/write-str {:active     (some? token-info)
+                              :scope      (:scope client)
+                              :client_id  (:client_id client)
+                              :token_type "bearer"
+                              :username   (:username client)})})))
 
 (defrecord AuthorizationComponent [disposable?]
   component/Lifecycle
@@ -300,16 +304,22 @@
       code))
 
   (new-token [component code client-id redirect-uri]
+    (println "new-tokenどこだ" component code client-id redirect-uri)
     (when-let [{:keys [client used? access-token]}
                (cache/lookup @(:code-cache component) code)]
+      (println "new-tokenきたー")
       (when (and (= (:client_id client) client-id)
                  (= (:redirect_uri client) redirect-uri))
+      (println "new-tokenもうちょいなか")
+
         (if used?
           (do
             (swap! (:token-cache component) dissoc access-token)
             (swap! (:code-cache component) dissoc code))
           (let [access-token  (re-rand #"[a-zA-Z0-9]{22}")
                 refresh-token (re-rand #"[a-zA-Z0-9]{22}")]
+            (println "ふも")
+            (println "access-token" access-token)
             (swap! (:token-cache component) update-in [access-token]
                    #(assoc %
                            :client client :expires-in 18000 :token-type "bearer"
